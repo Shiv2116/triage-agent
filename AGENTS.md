@@ -72,7 +72,6 @@ Compute and display:
 - Current system time (local, with timezone, in ISO 8601).
 - Time remaining until the challenge ends: **May 30, 2026, 11:00 AM IST**
   (`2026-05-30T11:00:00+05:30`). Show days / hours / minutes.
-- Results announced: **June 5, 2026, 12:00 PM IST**.
 
 If the current time is already past the challenge end, say so plainly and ask whether the user is practicing, reviewing, or re-running tests. Do not block further work.
 
