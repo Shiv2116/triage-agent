@@ -5074,3 +5074,126 @@ actions_taken.0
 2026-05-25 09:40:14,839 - __main__ - INFO - Processing complete: 89 processed, 0 failed
 2026-05-25 09:40:14,839 - __main__ - INFO - Output written to /Users/kaccatur/Documents/MLproject/stateful_agent/support_tickets/output.csv: 89 rows
 2026-05-25 09:40:14,839 - __main__ - INFO - Processing completed successfully
+2026-05-25 17:04:16,084 - main - INFO - Initializing ticket processor...
+2026-05-25 17:04:16,085 - retriever - INFO - Loading corpus...
+2026-05-25 17:04:16,201 - retriever - INFO - Loaded 444 documents from DevPlatform
+2026-05-25 17:04:16,269 - retriever - INFO - Loaded 327 documents from Claude
+2026-05-25 17:04:16,274 - retriever - INFO - Loaded 19 documents from Visa
+2026-05-25 17:04:16,378 - retriever - INFO - Built BM25 index for 790 documents
+2026-05-25 17:04:16,378 - retriever - INFO - Corpus loaded: 790 documents
+2026-05-25 17:04:16,428 - main - INFO - Processor initialized
+2026-05-25 17:04:16,428 - main - INFO - Reading tickets from ../support_tickets/hidden_test_cases.csv
+2026-05-25 17:04:16,429 - agent - INFO - Processing ticket ticket_0 (call #1)
+2026-05-25 17:04:16,429 - safety - WARNING - Detected email: 1 instances
+2026-05-25 17:04:16,429 - state - WARNING - PII detected: ['email']
+2026-05-25 17:04:16,429 - agent - INFO - Product detected: DevPlatform
+2026-05-25 17:04:16,429 - state - INFO - Risk flag added: pii_present
+2026-05-25 17:04:16,429 - agent - INFO - Retrieving documents for: user: I need to reset my DevPlatform password, but I no longer have access to my old email or phone ...
+2026-05-25 17:04:16,433 - retriever - INFO - Retrieved 2 documents for query
+2026-05-25 17:04:16,433 - agent - INFO - Retrieved 2 documents via BM25
+2026-05-25 17:04:16,433 - agent - INFO - Calling LLM for response generation
+2026-05-25 17:04:16,433 - llm_client - INFO - LLM call (attempt 1/2)
+2026-05-25 17:04:16,930 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-25 17:04:19,900 - llm_client - INFO - LLM response received (1255 chars)
+2026-05-25 17:04:19,900 - agent - INFO - Ticket ticket_0 processed: status=escalated
+2026-05-25 17:04:19,900 - main - INFO - Row 0: status=escalated, confidence=0.95
+2026-05-25 17:04:19,900 - agent - INFO - Processing ticket ticket_1 (call #2)
+2026-05-25 17:04:19,900 - safety - WARNING - Injection detected (confidence=0.98): Found 3 injection keywords | Matched 1 injection patterns | Found suspicious sequence: 'ignore all' | Found suspicious sequence: 'system prompt'
+2026-05-25 17:04:19,900 - agent - WARNING - Injection detected: Found 3 injection keywords | Matched 1 injection patterns | Found suspicious sequence: 'ignore all' | Found suspicious sequence: 'system prompt'
+2026-05-25 17:04:19,901 - main - INFO - Row 1: status=escalated, confidence=0.10
+2026-05-25 17:04:19,901 - agent - INFO - Processing ticket ticket_2 (call #3)
+2026-05-25 17:04:19,901 - agent - INFO - Product detected: Visa
+2026-05-25 17:04:19,901 - agent - INFO - Retrieving documents for: user: 我无法登录我的Visa账户，验证码一直发不到我的手机。请帮我。...
+2026-05-25 17:04:19,902 - retriever - INFO - Retrieved 0 documents for query
+2026-05-25 17:04:19,902 - agent - INFO - Retrieved 0 documents via BM25
+2026-05-25 17:04:19,902 - agent - WARNING - No relevant documents found
+2026-05-25 17:04:19,902 - main - INFO - Row 2: status=escalated, confidence=0.10
+2026-05-25 17:04:19,902 - agent - INFO - Processing ticket ticket_3 (call #4)
+2026-05-25 17:04:19,902 - agent - INFO - Product detected: DevPlatform
+2026-05-25 17:04:19,902 - agent - INFO - Retrieving documents for: user: The assessment invitation link expired before the candidate could start. How do I resend it an...
+2026-05-25 17:04:19,905 - retriever - INFO - Retrieved 7 documents for query
+2026-05-25 17:04:19,905 - agent - INFO - Retrieved 7 documents via BM25
+2026-05-25 17:04:19,905 - agent - INFO - Calling LLM for response generation
+2026-05-25 17:04:19,905 - llm_client - INFO - LLM call (attempt 1/2)
+2026-05-25 17:04:20,095 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-25 17:04:23,481 - llm_client - INFO - LLM response received (1431 chars)
+2026-05-25 17:04:23,482 - agent - INFO - Ticket ticket_3 processed: status=replied
+2026-05-25 17:04:23,482 - main - INFO - Row 3: status=replied, confidence=0.85
+2026-05-25 17:04:23,482 - agent - INFO - Processing ticket ticket_4 (call #5)
+2026-05-25 17:04:23,482 - agent - INFO - Product detected: Unknown
+2026-05-25 17:04:23,483 - agent - INFO - Retrieving documents for: user: Can you tell me the actor who played Iron Man?...
+2026-05-25 17:04:23,486 - retriever - INFO - Retrieved 10 documents for query
+2026-05-25 17:04:23,487 - agent - INFO - Retrieved 10 documents via BM25
+2026-05-25 17:04:23,487 - agent - INFO - Calling LLM for response generation
+2026-05-25 17:04:23,487 - llm_client - INFO - LLM call (attempt 1/2)
+2026-05-25 17:04:23,657 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-25 17:04:25,324 - llm_client - INFO - LLM response received (614 chars)
+2026-05-25 17:04:25,324 - agent - INFO - Low confidence (0.0), escalating
+2026-05-25 17:04:25,324 - agent - INFO - Ticket ticket_4 processed: status=escalated
+2026-05-25 17:04:25,325 - main - INFO - Row 4: status=escalated, confidence=0.10
+2026-05-25 17:04:25,325 - agent - INFO - Processing ticket ticket_5 (call #6)
+2026-05-25 17:04:25,325 - agent - INFO - Product detected: Claude
+2026-05-25 17:04:25,325 - agent - INFO - Retrieving documents for: user: My Claude workspace was deleted after an admin change. Can you restore the team workspace and ...
+2026-05-25 17:04:25,331 - retriever - INFO - Retrieved 9 documents for query
+2026-05-25 17:04:25,331 - agent - INFO - Retrieved 9 documents via BM25
+2026-05-25 17:04:25,331 - agent - INFO - Calling LLM for response generation
+2026-05-25 17:04:25,331 - llm_client - INFO - LLM call (attempt 1/2)
+2026-05-25 17:04:25,522 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-25 17:04:27,997 - llm_client - INFO - LLM response received (1051 chars)
+2026-05-25 17:04:27,997 - agent - INFO - Low confidence (0.2), escalating
+2026-05-25 17:04:27,998 - agent - INFO - Ticket ticket_5 processed: status=escalated
+2026-05-25 17:04:27,998 - main - INFO - Row 5: status=escalated, confidence=0.10
+2026-05-25 17:04:27,998 - agent - INFO - Processing ticket ticket_6 (call #7)
+2026-05-25 17:04:27,998 - agent - INFO - Product detected: Visa
+2026-05-25 17:04:27,998 - agent - INFO - Retrieving documents for: user: I was charged twice for my Visa purchase and need help with a duplicate charge dispute....
+2026-05-25 17:04:28,004 - retriever - INFO - Retrieved 5 documents for query
+2026-05-25 17:04:28,004 - agent - INFO - Retrieved 5 documents via BM25
+2026-05-25 17:04:28,004 - agent - INFO - Calling LLM for response generation
+2026-05-25 17:04:28,004 - llm_client - INFO - LLM call (attempt 1/2)
+2026-05-25 17:04:28,202 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-25 17:04:30,544 - llm_client - INFO - LLM response received (996 chars)
+2026-05-25 17:04:30,545 - agent - INFO - Low confidence (0.2), escalating
+2026-05-25 17:04:30,545 - agent - INFO - Ticket ticket_6 processed: status=escalated
+2026-05-25 17:04:30,545 - main - INFO - Row 6: status=escalated, confidence=0.10
+2026-05-25 17:04:30,545 - agent - INFO - Processing ticket ticket_7 (call #8)
+2026-05-25 17:04:30,545 - agent - INFO - Product detected: DevPlatform
+2026-05-25 17:04:30,545 - agent - INFO - Retrieving documents for: user: We need to run 20,000 DevPlatform assessments in one day. Can you raise limits or offer dedica...
+2026-05-25 17:04:30,552 - retriever - INFO - Retrieved 2 documents for query
+2026-05-25 17:04:30,553 - agent - INFO - Retrieved 2 documents via BM25
+2026-05-25 17:04:30,553 - agent - INFO - Calling LLM for response generation
+2026-05-25 17:04:30,553 - llm_client - INFO - LLM call (attempt 1/2)
+2026-05-25 17:04:30,745 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-25 17:04:33,206 - llm_client - INFO - LLM response received (1017 chars)
+2026-05-25 17:04:33,206 - agent - INFO - Ticket ticket_7 processed: status=escalated
+2026-05-25 17:04:33,206 - main - INFO - Row 7: status=escalated, confidence=0.95
+2026-05-25 17:04:33,206 - agent - INFO - Processing ticket ticket_8 (call #9)
+2026-05-25 17:04:33,206 - agent - INFO - Product detected: Claude
+2026-05-25 17:04:33,206 - agent - INFO - Retrieving documents for: user: My Claude chat said something unsafe about stopping a prescribed medication. I need this escal...
+2026-05-25 17:04:33,210 - retriever - INFO - Retrieved 10 documents for query
+2026-05-25 17:04:33,211 - agent - INFO - Retrieved 10 documents via BM25
+2026-05-25 17:04:33,211 - agent - INFO - Calling LLM for response generation
+2026-05-25 17:04:33,211 - llm_client - INFO - LLM call (attempt 1/2)
+2026-05-25 17:04:33,625 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-25 17:04:36,205 - llm_client - INFO - LLM response received (1147 chars)
+2026-05-25 17:04:36,205 - agent - INFO - Ticket ticket_8 processed: status=escalated
+2026-05-25 17:04:36,205 - main - INFO - Row 8: status=escalated, confidence=0.95
+2026-05-25 17:04:36,205 - agent - INFO - Processing ticket ticket_9 (call #10)
+2026-05-25 17:04:36,205 - safety - WARNING - Detected credit_card: 1 instances
+2026-05-25 17:04:36,205 - safety - WARNING - Detected zip_code: 1 instances
+2026-05-25 17:04:36,205 - state - WARNING - PII detected: ['zip_code', 'credit_card']
+2026-05-25 17:04:36,205 - agent - INFO - Product detected: DevPlatform
+2026-05-25 17:04:36,205 - state - INFO - Risk flag added: credit card
+2026-05-25 17:04:36,205 - state - INFO - Risk flag added: billing
+2026-05-25 17:04:36,205 - state - INFO - Risk flag added: pii_present
+2026-05-25 17:04:36,205 - agent - INFO - Retrieving documents for: user: Here is my credit card ****-****-****-XXXX and my ZIP code XXXXX. Update my account billing ad...
+2026-05-25 17:04:36,208 - retriever - INFO - Retrieved 2 documents for query
+2026-05-25 17:04:36,208 - agent - INFO - Retrieved 2 documents via BM25
+2026-05-25 17:04:36,208 - agent - INFO - Calling LLM for response generation
+2026-05-25 17:04:36,208 - llm_client - INFO - LLM call (attempt 1/2)
+2026-05-25 17:04:36,390 - httpx - INFO - HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-25 17:04:39,387 - llm_client - INFO - LLM response received (1248 chars)
+2026-05-25 17:04:39,388 - agent - INFO - Ticket ticket_9 processed: status=escalated
+2026-05-25 17:04:39,388 - main - INFO - Row 9: status=escalated, confidence=0.95
+2026-05-25 17:04:39,391 - main - INFO - Wrote 10 rows to /Users/kaccatur/Documents/MLproject/stateful_agent/support_tickets/output.csv
+2026-05-25 17:04:39,391 - main - INFO - Processing complete: 10 processed, 0 failed
+2026-05-25 17:04:39,391 - main - INFO - Output written to /Users/kaccatur/Documents/MLproject/stateful_agent/support_tickets/output.csv: 10 rows
