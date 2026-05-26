@@ -7,7 +7,6 @@ Maintains in-memory state for each ticket during processing.
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
-import json
 import logging
 
 logger = logging.getLogger(__name__)

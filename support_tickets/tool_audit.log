@@ -1,0 +1,4 @@
+{"timestamp": "2026-05-25T15:17:46.692683Z", "ticket_id": "test-1", "action": "verify_identity", "parameters": {"method": "email_otp", "target": "user@example.com"}, "status": "simulated_success", "messages": ["simulated: identity verified"]}
+{"timestamp": "2026-05-25T17:47:57.596699Z", "ticket_id": "test-2", "action": "verify_identity", "parameters": {}, "status": "invalid", "messages": ["Missing required parameter 'method' for action 'verify_identity'", "Missing required parameter 'target' for action 'verify_identity'"]}
+{"timestamp": "2026-05-25T17:51:06.082959Z", "ticket_id": "ticket_45", "action": "escalated_to_security_team", "parameters": {}, "status": "invalid", "messages": ["Unknown action 'escalated_to_security_team'"]}
+{"timestamp": "2026-05-26T05:04:59.100072Z", "ticket_id": "ticket_67", "action": "escalated_to_human_fraud_team", "parameters": {}, "status": "invalid", "messages": ["Unknown action 'escalated_to_human_fraud_team'"]}

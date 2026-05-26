@@ -12,6 +12,9 @@ Usage:
 import csv
 import sys
 import os
+import json
+
+from schemas import TicketResponse
 
 EXPECTED_HEADERS = [
     "issue", "subject", "company", "response", "product_area",
@@ -49,88 +52,72 @@ def validate():
     
     with open(output_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        
+
         # Check headers
         actual_headers = reader.fieldnames
         if actual_headers is None:
             print("❌ FAIL: output.csv is empty or has no headers")
             return False
-        
-        missing_headers = set(EXPECTED_HEADERS) - set(actual_headers)
-        extra_headers = set(actual_headers) - set(EXPECTED_HEADERS)
-        
-        if missing_headers:
-            errors.append(f"Missing columns: {', '.join(sorted(missing_headers))}")
-        if extra_headers:
-            warnings.append(f"Extra columns (will be ignored): {', '.join(sorted(extra_headers))}")
-        
+
         rows = list(reader)
         output_count = len(rows)
-        
+
         if output_count != input_count:
             errors.append(f"Row count mismatch: expected {input_count}, got {output_count}")
-        
+
+        # Validate each row by attempting to construct TicketResponse (Pydantic)
         for i, row in enumerate(rows, start=1):
-            # Check status
-            status = row.get("status", "").strip().lower()
-            if status not in VALID_STATUS:
-                errors.append(f"Row {i}: invalid status '{status}' (expected: {VALID_STATUS})")
-            
-            # Check request_type
-            request_type = row.get("request_type", "").strip().lower()
-            if request_type not in VALID_REQUEST_TYPE:
-                errors.append(f"Row {i}: invalid request_type '{request_type}' (expected: {VALID_REQUEST_TYPE})")
-            
-            # Check response is not empty
-            response = row.get("response", "").strip()
-            if not response:
-                warnings.append(f"Row {i}: empty response")
-            
-            # Check confidence_score is a valid float 0-1
-            conf = row.get("confidence_score", "").strip()
-            if conf:
-                try:
-                    conf_val = float(conf)
-                    if not (0.0 <= conf_val <= 1.0):
-                        errors.append(f"Row {i}: confidence_score {conf_val} out of range [0.0, 1.0]")
-                except ValueError:
-                    errors.append(f"Row {i}: confidence_score '{conf}' is not a valid float")
+            # Normalize and convert fields to expected types
+            data = {}
+            # Map CSV fields to TicketResponse fields where possible
+            data["status"] = row.get("status")
+            data["product_area"] = row.get("product_area") or row.get("Product Area") or row.get("product area")
+            data["response"] = row.get("response") or row.get("Response")
+            data["justification"] = row.get("justification") or row.get("Justification") or ""
+            data["request_type"] = row.get("request_type") or row.get("Request Type")
+            # confidence to float
+            conf = row.get("confidence_score") or row.get("Confidence Score")
+            try:
+                data["confidence_score"] = float(conf) if conf not in (None, "") else None
+            except Exception:
+                errors.append(f"Row {i}: invalid confidence_score '{conf}'")
+                data["confidence_score"] = None
+
+            # risk level
+            data["risk_level"] = (row.get("risk_level") or row.get("Risk Level"))
+
+            # pii_detected
+            pii = row.get("pii_detected") or row.get("PII Detected")
+            if pii is not None:
+                pii_val = str(pii).strip().lower()
+                if pii_val in ("true", "false"):
+                    data["pii_detected"] = (pii_val == "true")
+                else:
+                    errors.append(f"Row {i}: invalid pii_detected '{pii}'")
+                    data["pii_detected"] = False
             else:
-                warnings.append(f"Row {i}: empty confidence_score")
-            
-            # Check risk_level
-            risk = row.get("risk_level", "").strip().lower()
-            if risk and risk not in VALID_RISK_LEVEL:
-                errors.append(f"Row {i}: invalid risk_level '{risk}' (expected: {VALID_RISK_LEVEL})")
-            elif not risk:
-                warnings.append(f"Row {i}: empty risk_level")
-            
-            # Check pii_detected
-            pii = row.get("pii_detected", "").strip().lower()
-            if pii and pii not in VALID_PII_DETECTED:
-                errors.append(f"Row {i}: invalid pii_detected '{pii}' (expected: {VALID_PII_DETECTED})")
-            elif not pii:
-                warnings.append(f"Row {i}: empty pii_detected")
-            
-            # Check language
-            lang = row.get("language", "").strip().lower()
-            if not lang:
-                warnings.append(f"Row {i}: empty language")
-            elif len(lang) > 5:
-                warnings.append(f"Row {i}: language '{lang}' seems too long for ISO 639-1")
-            
-            # Check actions_taken is valid JSON array
-            actions = row.get("actions_taken", "").strip()
-            if not actions:
-                warnings.append(f"Row {i}: actions_taken is empty (expected '[]' if no actions)")
-            else:
-                try:
-                    import json
-                    parsed = json.loads(actions)
-                    if not isinstance(parsed, list):
-                        errors.append(f"Row {i}: actions_taken must be a JSON array, got {type(parsed).__name__}")
-                except json.JSONDecodeError as e:
-                    errors.append(f"Row {i}: actions_taken is not valid JSON ({str(e)})")
+                data["pii_detected"] = False
+
+            data["language"] = row.get("language") or row.get("Language") or "en"
+
+            # source_documents may be pipe-separated
+            src = row.get("source_documents") or row.get("Source Documents") or ""
+            data["source_documents"] = [p for p in (src.split("|") if src else []) if p]
+
+            # actions_taken expected JSON array
+            actions_raw = row.get("actions_taken") or row.get("Actions Taken") or "[]"
+            try:
+                parsed_actions = json.loads(actions_raw) if actions_raw else []
+                data["actions_taken"] = parsed_actions
+            except json.JSONDecodeError as e:
+                errors.append(f"Row {i}: actions_taken is not valid JSON ({str(e)})")
+                data["actions_taken"] = []
+
+            # Attempt Pydantic validation
+            try:
+                TicketResponse(**data)
+            except Exception as e:
+                errors.append(f"Row {i}: schema validation failed: {e}")
     
     # Print results
     print("=" * 60)

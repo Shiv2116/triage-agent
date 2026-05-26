@@ -8,7 +8,6 @@ import logging
 from typing import List, Tuple, Optional, Dict, Any
 from pathlib import Path
 from rank_bm25 import BM25Okapi
-import json
 
 from config import (
     DATA_DIR,
@@ -16,10 +15,8 @@ from config import (
     CLAUDE_CORPUS,
     VISA_CORPUS,
     BM25_TOP_K,
-    MIN_CHUNK_SIZE,
-    MAX_CHUNK_SIZE,
-    CHUNK_OVERLAP,
 )
+from utils import tokenize
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +91,8 @@ class BM25Retriever:
                         content=content,
                         product=product,
                     )
+                    # Use centralized tokenize utility
+                    doc.tokens = tokenize(content)
                     self.documents.append(doc)
                     count += 1
 

@@ -165,6 +165,7 @@ These are suggestions based on what has worked for similar challenges. Choose th
 - **Trusting the sample set distribution.** The sample tickets are mostly straightforward FAQs. The actual test set is not.
 - **Ignoring the extended output columns.** The problem statement's primary output section lists 5 columns. The full schema has more. Check `output.csv` and `sample_support_tickets.csv`.
 - **No adversarial handling.** A single prompt injection compliance results in a 0% score on the largest evaluation dimension (25% of total).
+ - **No adversarial handling.** A single prompt injection compliance results in a 0% score on the largest evaluation dimension (25% of total). This starter repo implements multi-signal injection detection and escalation; see `code/safety.py` and `code/ARCHITECTURE.md`.
 - **Hallucinated citations.** Citing corpus files that don't exist is penalized more heavily than omitting citations.
 - **Over-engineering.** Building a perfect RAG system that takes 8 hours leaves no time for safety, calibration, and testing.
 - **Under-reading the specs.** Requirements are distributed across `problem_statement.md`, `evalutation_criteria.md`, `AGENTS.md`, and this README. Read all of them.

@@ -16,8 +16,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from config import INPUT_CSV, OUTPUT_CSV, CSV_COLUMNS, MAX_TICKETS, LOG_FORMAT, LOG_LEVEL
-from schemas import TicketInput, TicketResponse
-from state import TicketState, TicketStateManager, ConversationMessage
+from state import TicketStateManager
 from retriever import create_retriever
 from safety import create_safety_layer
 from llm_client import create_llm_client

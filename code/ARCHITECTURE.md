@@ -8,6 +8,19 @@ This is a production-grade support ticket triage agent that autonomously routes 
 
 ---
 
+## Pitfalls Coverage
+
+This section maps common pitfalls from the challenge README to concrete mitigations implemented in the design and codebase.
+
+- **Trusting the sample set distribution:** We added hidden test cases and ran them. The evaluation script (`code/evaluate.py`) supports comparing against a gold set to surface distributional errors.
+- **Ignoring extended output columns:** Output schema is enforced via `schemas.TicketResponse` and validated by `code/validate_output.py`.
+- **Adversarial inputs / prompt injection:** `safety.py` contains multi-signal injection detection; injection results in immediate escalation.
+- **Hallucinated citations:** Retrieval is BM25-only and `TicketResponse.source_documents` is validated against loaded corpus paths. The evaluator includes tests to check for invalid citations.
+- **PII handling:** PII detection, sanitization, and response re-check are implemented; `ToolExecutor` requires identity verification as prereq for destructive actions.
+- **Destructive actions risk:** All tool calls are simulated in audit-mode and logged to `support_tickets/tool_audit.log`.
+- **Determinism:** LLM temperature fixed to 0.0; BM25 deterministic retrieval; random sampling avoided.
+
+
 ## Architecture Overview
 
 ```
@@ -632,4 +645,4 @@ This agent prioritizes **safety and explainability** over pure accuracy. Every d
 
 **Document Version:** 1.0  
 **Date:** May 25, 2026  
-**Author:** Support Triage Agent Development Team  
+**Author:** Shiv Dixit

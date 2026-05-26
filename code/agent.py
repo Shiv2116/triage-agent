@@ -5,11 +5,9 @@ Coordinates between retriever, safety layer, LLM, and state management.
 """
 
 import logging
-import json
 from typing import Optional, List, Tuple
-from pathlib import Path
 
-from schemas import TicketResponse, EscalationResponse, LLMOutput
+from schemas import TicketResponse, LLMOutput
 from state import TicketState, RiskLevel
 from safety import SafetyLayer
 from retriever import BM25Retriever
@@ -21,6 +19,7 @@ from config import (
     RISK_HIGH_KEYWORDS,
     PRODUCT_KEYWORDS,
 )
+from tool_executor import create_tool_executor
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +32,7 @@ class SupportAgent:
         retriever: BM25Retriever,
         llm_client: LLMClient,
         safety_layer: SafetyLayer,
+        tool_executor=None,
     ):
         """
         Initialize agent.
@@ -46,6 +46,8 @@ class SupportAgent:
         self.llm = llm_client
         self.safety = safety_layer
         self.call_count = 0
+        # Tool executor (audit-mode by default)
+        self.tool_executor = tool_executor or create_tool_executor()
 
     def process_ticket(self, state: TicketState) -> TicketResponse:
         """
@@ -142,6 +144,22 @@ class SupportAgent:
                     "Unable to process your request at this time. Please try again.",
                     reason="llm_error",
                 )
+
+            # ===== LAYER 6.5: SIMULATE/VALIDATE TOOL CALLS =====
+            actions = getattr(llm_output, "actions_taken", None) or []
+            if actions:
+                logger.info(f"LLM proposed {len(actions)} action(s); validating in audit-mode")
+                tool_results = self.tool_executor.simulate_actions(state.ticket_id, actions, state)
+
+                # If any action failed validation or prereq checks, escalate
+                for tr in tool_results:
+                    if not tr.get("success"):
+                        logger.warning(f"Tool simulation failed: {tr}")
+                        return self._escalate_response(
+                            state,
+                            "Action proposed by the agent failed safety or prerequisite checks. Escalating to human.",
+                            reason="tool_validation_failed",
+                        )
 
             # ===== LAYER 7: OUTPUT VALIDATION & OVERRIDES =====
             response = self._validate_and_finalize(llm_output, state, retrieved_docs)

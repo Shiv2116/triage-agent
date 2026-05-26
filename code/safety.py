@@ -4,7 +4,7 @@ safety.py - Safety layer for injection detection, PII handling, and output valid
 
 import re
 import logging
-from typing import Tuple, List, Optional, Dict, Any
+from typing import Tuple, List, Dict, Any
 from config import (
     INJECTION_KEYWORDS,
     INJECTION_PATTERNS,
