@@ -117,7 +117,7 @@ class SupportAgent:
                 )
 
             # ===== LAYER 5: RETRIEVAL =====
-            retrieved_docs = self._retrieve_documents(sanitized_text, product)
+            retrieved_docs = self._retrieve_documents(sanitized_text, product, state)
             for doc_path, _, _ in retrieved_docs:
                 state.add_retrieved_document(doc_path)
 
@@ -230,6 +230,7 @@ class SupportAgent:
         self,
         query: str,
         product: str,
+        state: TicketState,
     ) -> List[Tuple[str, float, str]]:
         """
         Retrieve relevant documents.
@@ -243,6 +244,22 @@ class SupportAgent:
         docs = self.retriever.retrieve_by_product(query, product) if product != "Unknown" else self.retriever.retrieve(query)
 
         logger.info(f"Retrieved {len(docs)} documents via BM25")
+
+        # Attempt LLM re-ranking for final top-K ordering using ticket metadata
+        try:
+            reranked, rerank_errors = self.llm.rerank_documents(
+                query, docs, product=product, risk=state.risk_level.value if state.risk_level else None, pii=state.pii_detected
+            )
+            if reranked and isinstance(reranked, list) and len(reranked) > 0:
+                logger.info(f"LLM re-ranker returned {len(reranked)} documents; using re-ranked order")
+                docs = reranked
+            else:
+                logger.info("LLM re-ranker did not return a usable ranking; keeping BM25 order")
+                if rerank_errors:
+                    logger.debug(f"Rerank errors: {rerank_errors}")
+        except Exception as e:
+            logger.warning(f"Error during LLM re-ranking: {e}")
+
         return docs[:RERANK_TOP_K]
 
     def _prepare_context(self, docs: List[Tuple[str, float, str]]) -> str:

@@ -28,28 +28,82 @@ pip install -r requirements.txt
 cp ../.env.example .env
 
 # Set your DeepSeek API key (free tier available)
-# Get your key at: https://platform.deepseek.com/
+# Support Ticket Triage Agent
+
+This repository implements a terminal-based support triage agent that:
+
+- Reads support tickets from `support_tickets/support_tickets.csv`.
+- Uses BM25 retrieval over the local `data/` corpus.
+-- Calls an LLM (DeepSeek by default) to generate structured, schema-validated replies.
+- Applies a multi-layer safety stack: prompt-injection detection, PII sanitization, schema validation, and conservative escalation.
+
+Key features
+--------------
+
+- Deterministic behavior (LLM temperature set to 0.0).
+- In-memory state management (no external DB).
+- BM25 retrieval with optional LLM re-ranking.
+- Strict JSON output validation via Pydantic models in `code/schemas.py`.
+
+
+1) Setup
+---------
+
+Run these commands from the repository root:
+
+```bash
+cd code/
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+2) Configuration
+------------------
+
+Copy the example env file and set the API key if you plan to use the remote LLM:
+
+```bash
+cp ../.env.example .env
 export DEEPSEEK_API_KEY="sk-..."
 # Or set in .env file
 ```
 
 **Why DeepSeek?**
-- ✅ Free tier with generous rate limits
-- ✅ No credit card required for testing
-- ✅ OpenAI-compatible API (easy integration)
-- ✅ Fast response times
-- ✅ Excellent for development and testing
+- Free tier with generous rate limits
+- OpenAI-compatible API (easy integration)
+- Fast response times
+- Excellent for development and testing
 
 ### 3. Run Agent
 
 ```bash
-# Process all tickets
+# from code/ directory (venv activated)
 python main.py
-
-# Output will be written to: ../support_tickets/output.csv
 ```
 
-## Project Structure
+Notes:
+
+
+- The agent logs to `processing.log` and writes `support_tickets/output.csv`.
+
+4) Validate output
+-------------------
+
+Run the included structural validator (checks CSV columns / types):
+
+```bash
+python validate_output.py
+```
+
+This script only validates format, not semantic correctness.
+
+Project structure
+------------------
 
 ```
 code/
@@ -58,91 +112,38 @@ code/
 ├── retriever.py         # BM25 document retrieval
 ├── safety.py            # Injection detection + PII handling
 ├── state.py             # In-memory ticket state management
-├── llm_client.py        # LLM integration (Anthropic Claude)
+├── llm_client.py        # LLM integration (DeepSeek or mock)
 ├── schemas.py           # Pydantic models for validation
 ├── config.py            # Configuration and constants
 ├── utils.py             # Helper utilities
+├── validate_output.py   # Output CSV structural validator
 ├── requirements.txt     # Python dependencies
-└── README.md            # This file
+├── README.md            # This file
+└── ARCHITECTURE.md      # Design doc
 ```
 
-## Architecture
+5) Testing
+-----------
 
-### Pipeline Flow
+Use the `support_tickets/sample_support_tickets.csv` as a sample input; the agent will write `support_tickets/output.csv` which you can validate with `validate_output.py`.
 
-```
-Input CSV
-    ↓
-[For each ticket]
-    ├─ Injection Detection (Safety Layer)
-    ├─ PII Detection & Sanitization
-    ├─ Product Inference
-    ├─ Risk Assessment
-    ├─ Document Retrieval (BM25)
-    ├─ LLM Reasoning (Claude)
-    ├─ Output Validation
-    └─ Confidence/Risk Overrides
-         ↓
-Output CSV
-```
+6) Extending & tuning
+-----------------------
 
-### Key Components
+- To enable LLM re-ranking, update `SupportAgent._retrieve_documents` to call `LLMClient.rerank_documents` and fall back to BM25 on failure.
+- Tune thresholds in `code/config.py` (`CONFIDENCE_ESCALATION_THRESHOLD`, injection keywords, etc.).
 
-**Safety Layer** (`safety.py`)
-- Detects prompt injection attempts
-- Identifies PII in tickets
-- Sanitizes sensitive information
-- Validates output schemas
+7) Troubleshooting
+-------------------
 
-**Retriever** (`retriever.py`)
-- BM25-based document ranking
-- Corpus indexing from `data/` directories
-- Product-aware filtering
-- Deterministic relevance ranking
+- If the run fails due to missing API key, set `DEEPSEEK_API_KEY`.
+- Check `processing.log` for per-ticket errors.
 
-**Agent** (`agent.py`)
-- Orchestrates all components
-- Makes escalation decisions
-- Applies confidence-based overrides
-- Handles multi-turn conversations
+8) Contributing
+----------------
 
-**LLM Client** (`llm_client.py`)
-- Structured JSON output
-- Retry logic with exponential backoff
-- Rate limiting handling
-- Deterministic temperature=0.0
+Open a PR with focused changes. Keep the system deterministic and avoid adding network calls outside the allowed LLM providers.
 
-## Configuration
-
-Key settings in `config.py`:
-
-```python
-# LLM
-LLM_MODEL = "claude-3-5-sonnet-20241022"
-LLM_TEMPERATURE = 0.0  # Deterministic
-LLM_MAX_TOKENS = 2000
-LLM_RETRIES = 2
-
-# Retrieval
-BM25_TOP_K = 10          # Initial retrieval
-RERANK_TOP_K = 3         # After re-ranking
-
-# Thresholds
-CONFIDENCE_ESCALATION_THRESHOLD = 0.30
-MIN_INJECTION_SCORE = 0.7
-```
-
-## Output Format
-
-Each ticket produces a row with 11 columns:
-
-| Column | Type | Description |
-|--------|------|-------------|
-| status | enum | `replied` or `escalated` |
-| product_area | str | Support category |
-| response | str | User-facing answer |
-| justification | str | Decision explanation |
-| request_type | enum | Issue classification |
 | confidence_score | float | 0.0-1.0 calibrated confidence |
 | source_documents | str | Pipe-separated corpus paths |
 | risk_level | enum | `low`, `medium`, `high`, `critical` |

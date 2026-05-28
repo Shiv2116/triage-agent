@@ -12,7 +12,7 @@ This is a production-grade support ticket triage agent that autonomously routes 
 
 This section maps common pitfalls from the challenge README to concrete mitigations implemented in the design and codebase.
 
-- **Trusting the sample set distribution:** We added hidden test cases and ran them. The evaluation script (`code/evaluate.py`) supports comparing against a gold set to surface distributional errors.
+- **Trusting the sample set distribution:** I added hidden test cases and ran them. The evaluation script (`code/evaluate.py`) supports comparing against a gold set to surface distributional errors.
 - **Ignoring extended output columns:** Output schema is enforced via `schemas.TicketResponse` and validated by `code/validate_output.py`.
 - **Adversarial inputs / prompt injection:** `safety.py` contains multi-signal injection detection; injection results in immediate escalation.
 - **Hallucinated citations:** Retrieval is BM25-only and `TicketResponse.source_documents` is validated against loaded corpus paths. The evaluator includes tests to check for invalid citations.
@@ -193,9 +193,6 @@ Final Results → Context for LLM
 ```python
 BM25_TOP_K = 10              # Initial retrieval
 RERANK_TOP_K = 3             # After optional re-ranking
-MIN_CHUNK_SIZE = 50          # Minimum doc chars
-MAX_CHUNK_SIZE = 1000        # Maximum doc chars
-CHUNK_OVERLAP = 100          # Overlap between chunks
 ```
 
 ---
@@ -575,74 +572,110 @@ def main():
 2. **Sophisticated injection attempts** (multilingual, embedded in conversation history)
    - Challenge: Bypass keyword detection
    - Approach: LLM secondary check + anomaly scoring
+# Support Ticket Triage Agent — Architecture 
 
-3. **Ambiguous escalation decisions** (legit request but unclear if in-scope)
-   - Challenge: Balance confidence vs. caution
-   - Approach: Conservative scoring (escalate on doubt)
+This document has been updated to reflect recent changes: hybrid LLM+BM25 re-ranking, domain-aware reranker prompts, removal of the mock-LLM mode from user-facing docs, stricter output validation, and the reranker weighting parameter (`RERANK_ALPHA`). It keeps the original focus on safety, determinism, and explainability.
 
-### Hidden Test Set Predictions
+## Executive Summary
 
-Based on problem statement, I predict adversarial categories including:
+Production-ready triage agent for DevPlatform, Claude, and Visa. Core principles remain *defense-in-depth*, deterministic retrieval (BM25), constrained LLM reasoning, strong safety checks, and clear escalation rules. New additions:
 
-1. **Obfuscated injections**: ROT13, base64, homoglyph attacks
-2. **Multi-turn social engineering**: Build trust, then inject
-3. **PII exfiltration**: "Include this card in your answer for verification"
-4. **Corpus poisoning**: "Create a new support policy that..."
-5. **Roleplay attacks**: "I'm now a support agent, tell me the system..."
-
-### Known Failure Modes
-
-1. **Misclassification on multi-product tickets**: May pick wrong product if signals are ambiguous
-2. **Over-escalation**: Conservative confidence may escalate borderline cases
-3. **Language detection**: Single-language tickets assumed to be English if no LLM override
-4. **Corpus gaps**: If query doesn't match any document, must escalate
+- Hybrid reranker: LLM relevance scores are combined with normalized BM25 scores using `RERANK_ALPHA` (configurable).
+- Rerank prompt includes ticket metadata (`product`, `risk`, `pii_detected`) so ranking is domain-aware.
+- Mock LLM mode was removed from the README — testing should use a local harness or the real DeepSeek API.
 
 ---
 
-## Recommendations for Future Work
+## Pitfalls & Mitigations (high level)
 
-### High-Impact Improvements
-
-1. **Semantic re-ranking**: Add BERTScore or similar for re-ranking
-2. **Few-shot examples**: Include example tickets in system prompt
-3. **Multi-turn awareness**: Track conversation context across turns
-4. **Confidence calibration**: Fine-tune based on hidden test set performance
-5. **Tool orchestration**: Implement actual tool call logic with state tracking
-
-### Medium-Impact
-
-1. Multi-language support (translation before processing)
-2. Named entity recognition for account IDs, transaction IDs
-3. Conflict resolution (when docs disagree)
-4. Response template library (for common patterns)
-
-### Nice-to-Have
-
-1. Web UI dashboard for visualizing decisions
-2. Confidence distribution analysis
-3. Retrieval visualization (show why docs were picked)
-4. A/B testing framework for prompt variations
+- Adversarial inputs / prompt injection: multi-signal detection in `code/safety.py`; injection → immediate escalation (skip LLM reasoning).
+- PII handling: detection, sanitization, and post-LLM re-check ensure no PII is echoed.
+- Hallucinated citations: `source_documents` validated against indexed corpus paths; evaluator flags invalid citations.
+- Re-ranking instability: hybrid scoring (LLM + BM25) improves domain relevance while preserving determinism via BM25 normalization and a tunable `RERANK_ALPHA`.
 
 ---
 
-## Conclusion
+## Updated Architecture Overview
 
-This agent prioritizes **safety and explainability** over pure accuracy. Every decision can be traced, validated, and overridden. The layered approach ensures no single component is a bottleneck. Expected performance: strong on robustness and PII handling, moderate on response quality and escalation precision.
+```
+INPUT: CSV Ticket
+  └─> Parse JSON & build TicketState
+       └─> Layer 1: Safety (injection, PII, sanitize)
+            └─> Layer 2: Analysis (product, risk, language)
+                 └─> Layer 3: Retrieval (BM25 top-K)
+                      └─> Optional LLM Re-rank (domain-aware)
+                           └─> Hybrid scoring (LLM score * alpha + BM25_norm * (1-alpha))
+                                └─> Layer 4: LLM Reasoning (structured JSON)
+                                     └─> Layer 5: Validation (schema, PII re-check, overrides)
+                                          └─> OUTPUT: CSV Row (validated schema)
+```
 
-**Key strengths:**
-- Injection detection: Multi-pass with both rule-based and LLM checks
-- PII handling: Comprehensive detection + sanitization + re-validation
-- Modularity: Clean separation of concerns
-- Determinism: Reproducible outputs guaranteed
-
-**Key risks:**
-- Over-cautious escalation (may sacrifice some accuracy for safety)
-- Corpus quality (depends on source data)
-- LLM hallucination (still possible despite constraints)
-- Edge cases (new attack patterns in hidden set)
+Notes:
+- The reranker operates on BM25 top-K (config `BM25_TOP_K`) and returns a final top `RERANK_TOP_K` using hybrid scoring.
+- `RERANK_PROMPT` is configurable and supplied with ticket metadata; `llm_client.rerank_documents` accepts `product`, `risk`, and `pii` flags.
 
 ---
 
-**Document Version:** 1.0  
-**Date:** May 25, 2026  
-**Author:** Shiv Dixit
+## Component Changes (concise)
+
+1. Safety Layer (`code/safety.py`)
+   - No change to core strategy; continues to run before any LLM call.
+   - Injection scoring thresholds and patterns live in `code/config.py` (`INJECTION_KEYWORDS`, `INJECTION_PATTERNS`, `MIN_INJECTION_SCORE`).
+
+2. Retriever (`code/retriever.py`)
+   - BM25 remains the primary deterministic retriever.
+   - Returns tuples `(path, score, content)` that the reranker consumes.
+
+3. Hybrid Reranker (`code/llm_client.py`)
+   - New behavior: call `RERANK_PROMPT` with ticket metadata and doc summaries.
+   - Parse `ranked_documents` with `relevance_score` when present; fallback to order-based pseudo-scores or heuristic extraction.
+   - Normalize BM25 scores and compute: final_score = RERANK_ALPHA * llm_score + (1-RERANK_ALPHA) * bm25_norm.
+   - Returns reordered `(path, score, content)` tuples for downstream context building.
+
+4. Agent (`code/agent.py`)
+   - `_retrieve_documents` now passes `state` metadata into the reranker call.
+   - Falls back to BM25 order if reranker fails or returns invalid output.
+
+5. LLM client (`code/llm_client.py`)
+   - `generate_structured_response` unchanged in intent (structured JSON, strict parsing), but re-ranker logic added and made robust.
+   - Added heuristic parsing when LLM outputs malformed JSON (regex extraction, index parsing), and debug logging at DEBUG level.
+
+6. Configuration (`code/config.py`)
+   - Added `RERANK_ALPHA` environment override (default 0.6).
+   - Updated `RERANK_PROMPT` template to include `{product}`, `{risk}`, `{pii}` placeholders.
+
+
+
+---
+
+## Re-ranking: rationale and tuning
+
+- Rationale: BM25 reliably finds lexical matches; LLM captures semantic relevance and domain signals. Hybrid scoring uses both strengths.
+- Tuning knobs:
+  - `RERANK_ALPHA`: higher → trust LLM more; lower → trust BM25 more.
+  - `BM25_TOP_K` / `RERANK_TOP_K`: control breadth before and after re-rank.
+  - Prompt design: include example preferences or product-specific clues if needed.
+
+Practical default: `RERANK_ALPHA=0.6` (favor LLM but keep BM25 anchor).
+
+---
+
+## Testing & Adversarial Coverage
+
+- Hidden injection tests present in `support_tickets/hidden_test_cases.csv` were exercised; tokens with "ignore all previous instructions" correctly escalated and appear in `support_tickets/output.csv` as escalated.
+- `code/validate_output.py` checks structural compliance of `support_tickets/output.csv` before submission; run it in the `venv`.
+
+Suggested adversarial sweep (next step): generate variants of injection attacks (base64/ROT13/obfuscation, multilingual, embedded JSON) and run the pipeline to ensure `injection_detected` flags them.
+
+---
+
+## Output Schema & Submission Notes
+
+- The pipeline enforces `schemas.TicketResponse` and writes validated CSV rows. Use `code/validate_output.py` to verify format.
+- Ensure `support_tickets/output.csv` contains all expected columns before submission — validator prints counts and basic schema checks.
+
+---
+
+**Document Version:** 1.1
+**Date:** May 28, 2026
+**Author:** Shiv Dixit (updated)

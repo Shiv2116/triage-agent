@@ -18,8 +18,16 @@ from config import (
     LLM_MAX_TOKENS,
     LLM_TIMEOUT,
     LLM_RETRIES,
-    SYSTEM_PROMPT,
 )
+from config import RERANK_ALPHA
+
+# Prompts live in prompts.py; import directly to avoid config bloat
+from prompts import (
+    SYSTEM_PROMPT,
+    INJECTION_DETECTION_PROMPT,
+    RERANK_PROMPT,
+)
+
 from schemas import LLMOutput
 
 logger = logging.getLogger(__name__)
@@ -229,63 +237,158 @@ Generate JSON response matching this structure:
         self,
         query: str,
         documents: list,
+        product: Optional[str] = None,
+        risk: Optional[str] = None,
+        pii: bool = False,
     ) -> Tuple[Optional[list], List[str]]:
         """
-        Use LLM to re-rank retrieved documents by relevance.
+        Use LLM to re-rank retrieved documents by relevance, mixing LLM scores
+        with normalized BM25 scores using a configured alpha weight.
 
         Args:
             query: Original query
-            documents: List of (path, content, score) tuples
+            documents: List of (path, score, content) tuples as returned by the retriever
+            product: Optional product name for domain context
+            risk: Optional risk level string
+            pii: Whether PII was detected in the ticket
 
         Returns:
-            (ranked_paths, errors)
+            (ranked_documents, errors) where ranked_documents is a list of (path, combined_score, content)
         """
         errors = []
 
         if not documents:
             return [], errors
 
-        # Prepare document summaries
+        # Prepare document summaries (expecting (path, score, content))
         doc_summaries = []
-        for i, (path, content, score) in enumerate(documents):
-            summary = content[:300].replace("\n", " ")  # First 300 chars
+        for i, doc in enumerate(documents):
+            try:
+                path, score, content = doc
+            except Exception:
+                errors.append("Invalid document tuple format; expected (path, score, content)")
+                return None, errors
+
+            summary = (content[:300] if isinstance(content, str) else str(content))
+            summary = summary.replace("\n", " ")
             doc_summaries.append(f"{i}. [{path}]\n{summary}")
 
-        prompt = f"""Given this query and documents, rank them by relevance to answer the query.
-
-QUERY: {query}
-
-DOCUMENTS:
-{chr(10).join(doc_summaries)}
-
-Return JSON array of indices sorted by relevance (most relevant first):
-[0, 2, 1]
-"""
+        # Use the configured RERANK_PROMPT for consistent prompt formatting and include ticket metadata
+        prompt = (
+            RERANK_PROMPT.replace("{query}", query)
+            .replace("{documents}", chr(10).join(doc_summaries))
+            .replace("{product}", product or "Unknown")
+            .replace("{risk}", str(risk or "unknown"))
+            .replace("{pii}", str(bool(pii)))
+        )
 
         response_text, success = self.generate_response(
             user_message=prompt,
-            system_prompt="You are a document relevance ranker. Respond ONLY with a JSON array of indices.",
+            system_prompt="You are a document relevance ranker. Respond ONLY with valid JSON.",
         )
 
         if not success:
             errors.append("Failed to get LLM response for re-ranking")
             return None, errors
 
-        # Parse response
         parsed, parse_errors = self.parse_json_response(response_text)
         errors.extend(parse_errors)
 
-        if not isinstance(parsed, list):
-            errors.append("Re-ranking response is not an array")
-            return None, errors
+        # Log raw response for debugging when re-ranking fails
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"Re-ranker raw response: {response_text}")
 
-        # Map back to paths
-        ranked_paths = []
-        for idx in parsed:
-            if isinstance(idx, int) and 0 <= idx < len(documents):
-                ranked_paths.append(documents[idx][0])
+        # Build LLM scores mapping
+        llm_scores = {}
 
-        return ranked_paths, errors
+        # If parsed is dict with ranked_documents, prefer using its relevance_score
+        if isinstance(parsed, dict) and "ranked_documents" in parsed:
+            try:
+                for item in parsed.get("ranked_documents", []):
+                    idx = int(item.get("index")) if item.get("index") is not None else None
+                    score = float(item.get("relevance_score", 0.0)) if item.get("relevance_score") is not None else None
+                    if idx is not None and 0 <= idx < len(documents) and score is not None:
+                        llm_scores[idx] = score
+            except Exception:
+                pass
+
+        # If parsed is a list, handle both list-of-ints or list-of-dicts
+        if isinstance(parsed, list) and parsed:
+            # Check element type
+            if all(isinstance(x, int) for x in parsed):
+                for order_rank, idx in enumerate(parsed):
+                    try:
+                        if isinstance(idx, int) and 0 <= idx < len(documents):
+                            llm_scores[int(idx)] = max(0.0, 1.0 - (order_rank * 0.05))
+                    except Exception:
+                        continue
+            else:
+                # Possibly list of dicts with index/relevance_score
+                for item in parsed:
+                    try:
+                        idx = int(item.get("index")) if isinstance(item, dict) and item.get("index") is not None else None
+                        score = float(item.get("relevance_score")) if isinstance(item, dict) and item.get("relevance_score") is not None else None
+                        if idx is not None and 0 <= idx < len(documents) and score is not None:
+                            llm_scores[idx] = score
+                    except Exception:
+                        continue
+
+        # Heuristic fallback: try to extract indices from raw text if no llm_scores
+        if not llm_scores:
+            try:
+                import re
+
+                arr_match = re.search(r"\[[\s\d,]+\]", response_text)
+                if arr_match:
+                    try:
+                        arr = json.loads(arr_match.group(0))
+                        if isinstance(arr, list):
+                            for order_rank, idx in enumerate(arr):
+                                if isinstance(idx, int) and 0 <= idx < len(documents):
+                                    llm_scores[int(idx)] = max(0.0, 1.0 - (order_rank * 0.05))
+                    except Exception:
+                        pass
+                if not llm_scores:
+                    idx_matches = re.findall(r'"index"\s*:\s*(\d+)', response_text)
+                    for order_rank, m in enumerate(idx_matches):
+                        try:
+                            idx = int(m)
+                            if 0 <= idx < len(documents):
+                                llm_scores[idx] = max(0.0, 1.0 - (order_rank * 0.05))
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+
+        # Normalize BM25 scores
+        bm25_scores = [float(doc[1]) for doc in documents]
+        bm_min = min(bm25_scores) if bm25_scores else 0.0
+        bm_max = max(bm25_scores) if bm25_scores else 0.0
+        bm_range = bm_max - bm_min if bm_max != bm_min else 1.0
+        bm25_norm = [(s - bm_min) / bm_range for s in bm25_scores]
+
+        # Compute hybrid combined score per document
+
+        combined = []  # tuples of (idx, combined_score)
+        for idx, doc in enumerate(documents):
+            bm_norm = bm25_norm[idx]
+            llm_score = llm_scores.get(idx)
+            if llm_score is None:
+                final_score = bm_norm
+            else:
+                try:
+                    final_score = float(RERANK_ALPHA) * float(llm_score) + (1.0 - float(RERANK_ALPHA)) * float(bm_norm)
+                except Exception:
+                    final_score = bm_norm
+
+            combined.append((idx, final_score))
+
+        # Sort by combined_score desc
+        combined_sorted = sorted(combined, key=lambda x: x[1], reverse=True)
+
+        ranked_docs = [documents[idx] for idx, _ in combined_sorted]
+
+        return ranked_docs, errors
 
     def check_injection(self, text: str) -> Tuple[bool, float, str]:
         """
@@ -297,8 +400,7 @@ Return JSON array of indices sorted by relevance (most relevant first):
         Returns:
             (is_injection, confidence, reason)
         """
-        from config import INJECTION_DETECTION_PROMPT
-
+        # Use prompt from prompts.py (imported at module top)
         prompt = INJECTION_DETECTION_PROMPT.format(text=text[:1000])
 
         response_text, success = self.generate_response(
